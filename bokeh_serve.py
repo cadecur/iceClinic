@@ -4,6 +4,7 @@ import holoviews as hv
 from bokeh.io import show, curdoc
 from bokeh.layouts import layout
 from bokeh.models import Slider, Button, WMTSTileSource
+from bokeh.models.widgets import Dropdown
 import geoviews as gv
 import geoviews.feature as gf
 import xarray as xr
@@ -94,11 +95,17 @@ def sliceDimensions(state, padding=0, roundedOut=False):
 
 path = './data/f09_g16.B.cobalt.FRAM.MAY.TS.200005-208106.nc'
 preDataSet = xr.open_dataset(path)
+curr_var = "TS"
 
-def sine(phase):
+def variableDropdown(value):
+    path = './data/f09_g16.B.cobalt.FRAM.MAY.{}.200005-208106.nc'.format(value)
+    preDataSet = xr.open_dataset(path)
+
+def sine(phase, var):
     
-
+    global path, preDataSet, curr_var
     #Select time frame (months)
+    print(path)
     preDataSetSlice = preDataSet.isel(time=slice(int(phase),int(phase)+1))
     global curr_time 
     curr_time = str(preDataSetSlice['time'].data[0])
@@ -119,8 +126,8 @@ def sine(phase):
 
 
     #creating dataset
-    dataset = gv.Dataset(preDataSetSlice, ['lon', 'lat'], 'TS')
-    return gv.Image(dataset) * gf.coastline() * gf.borders()
+    dataset = gv.Dataset(preDataSetSlice, ['lon', 'lat'], var)
+    return gv.Image(dataset) * gf.coastline() * gf.borders() * gv.Feature(feature.STATES)
     #cobalt = dataset.to(gv.Image, ['lon', 'lat'], 'TS')
     #cobalt = cobalt.opts(backend='bokeh', responsive=True, cmap='Reds', colorbar=True) * gf.coastline() * gf.borders() * gv.Feature(feature.STATES)
     #return cobalt
@@ -128,7 +135,8 @@ def sine(phase):
     #return hv.Curve((xs, np.sin(xs+phase))).opts(width=800)
 
 stream = hv.streams.Stream.define('Phase', phase=0)()
-dmap = hv.DynamicMap(sine, streams=[stream]).opts(width=500, height=400)
+var_stream = hv.streams.Stream.define('Var', var="TS")()
+dmap = hv.DynamicMap(sine, streams=[stream, var_stream]).opts(width=500, height=400)
 # Define valid function for FunctionHandler
 # when deploying as script, simply attach to curdoc
 def modify_doc(doc):
@@ -143,14 +151,28 @@ def modify_doc(doc):
         slider.value = year
 
     def slider_update(attrname, old, new):
+        print(attrname, old, new)
         # Notify the HoloViews stream of the slider update 
         stream.event(phase=new)
         slider.title = curr_time
         
+    def variable_update(event):
+        global path, preDataSet, curr_var
+        path = './data/f09_g16.B.cobalt.FRAM.MAY.{}.200005-208106.nc'.format(event.item)
+        curr_var = event.item
+        print(path)
+        preDataSet = xr.open_dataset(path)
+        var_stream.event(var=event.item)
+
     start, end = 0, 100
     slider = Slider(start=start, end=end, value=start, step=1, title="Date", show_value=False)
     slider.on_change('value', slider_update)
     
+    #Variable Dropdown
+    menu = [("Temperature", "TS"), ("Percipitation", "PRECT")]
+    dropdown = Dropdown(label="Select Variable", button_type="primary", menu=menu)
+    dropdown.on_click(variable_update)
+
     callback_id = None
 
     def animate():
@@ -164,10 +186,15 @@ def modify_doc(doc):
     button = Button(label='► Play', width=60)
     button.on_click(animate)
     
+    curveData = preDataSet.sel(time=slice('2001-01-01', '2080-12-01'))
+    data = curveData['TS'].resample(time="12M").mean(dim="time")
+    temp_curve = hv.Curve(data.isel(lon=122, lat=45), kdims=['time']).opts(width=500)
+
     # Combine the holoviews plot and widgets in a layout
     plot = layout([
-    [hvplot.state],
-    [slider, button]], sizing_mode='fixed')
+    [hvplot.state, hv.render(temp_curve)],
+    [slider, button],
+    [dropdown]], sizing_mode='fixed')
     
     curdoc().add_root(plot)
     #return doc
