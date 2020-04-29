@@ -5,6 +5,7 @@ from bokeh.io import show, curdoc
 from bokeh.layouts import layout
 from bokeh.models import Slider, Button, WMTSTileSource
 from bokeh.models.widgets import Dropdown
+from bokeh.plotting import figure
 import geoviews as gv
 import geoviews.feature as gf
 import xarray as xr
@@ -116,8 +117,8 @@ min_range, max_range = getMinMax(preDataSet, curr_var)
 print('min range:', min_range)
 print('max range:', max_range)
 
-preDataset = interpolateData(preDataSet)
-print('dont with interpolation')
+# preDataset = interpolateData(preDataSet)
+# print('dont with interpolation')
 
 def variableDropdown(value):
     path = './data/f09_g16.B.cobalt.FRAM.MAY.{}.200005-208106.nc'.format(value)
@@ -189,15 +190,10 @@ def modify_doc(doc):
         curr_var = event.item
 
         preDataSet = xr.open_dataset(path)
-        # print('lon 0:', preDataSet.lon[0])
-        # print('lon -1:', preDataSet.lon[-1])
-        # print('dims: lat lon:', preDataSet.dims['lon'], preDataSet.dims['lat'])
-        var_stream.event(var=event.item)
         min_range, max_range = getMinMax(preDataSet, curr_var)
-        print('min range:', min_range)
-        print('max range:', max_range)
-        preDataSet = interpolateData(preDataSet)
-        print('interpolated that data')
+        var_stream.event(var=event.item)
+        # preDataSet = interpolateData(preDataSet)
+        # print('interpolated that data')
 
 
     start, end = 0, 100
@@ -226,8 +222,14 @@ def modify_doc(doc):
     data = curveData['TS'].resample(time="12M").mean(dim="time")
     temp_curve = hv.Curve(data.isel(lon=122, lat=45), kdims=['time']).opts(width=500)
 
+    # Getting the logo
+
+    logo = figure(x_range=(0,1), y_range=(0,1))
+    logo.image_url( url=['../static/logo.png'], x=0, y=1, w=0.8, h=0.6, anchor="bottom_left")
+
     # Combine the holoviews plot and widgets in a layout
     plot = layout([
+    [logo],
     [hvplot.state, hv.render(temp_curve)],
     [slider, button],
     [dropdown]], sizing_mode='fixed')
