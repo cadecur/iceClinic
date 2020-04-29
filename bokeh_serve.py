@@ -93,17 +93,26 @@ def sliceDimensions(state, padding=0, roundedOut=False):
     paddedBounds = (math.floor(northeastBounds[0] - padding),math.floor(northeastBounds[1] - padding), math.ceil(northeastBounds[2] + padding),math.ceil(northeastBounds[3] + padding)) if roundedOut else (northeastBounds[0] - padding, northeastBounds[1] - padding, northeastBounds[2] + padding, northeastBounds[3] + padding)
     return { "lat": slice(paddedBounds[1], paddedBounds[3]), "lon": slice(paddedBounds[0], paddedBounds[2]) }
 
+def getMinMax(data, var):
+    varData = data.data_vars[var]
+    dataMax = varData.values.max()
+    dataMin = varData.values.min()
+    return dataMax, dataMin
+
 path = './data/f09_g16.B.cobalt.FRAM.MAY.TS.200005-208106.nc'
 preDataSet = xr.open_dataset(path)
 curr_var = "TS"
+
+dataMax, dataMin = getMinMax(preDataSet, curr_var)
 
 def variableDropdown(value):
     path = './data/f09_g16.B.cobalt.FRAM.MAY.{}.200005-208106.nc'.format(value)
     preDataSet = xr.open_dataset(path)
 
+
 def sine(phase, var):
     
-    global path, preDataSet, curr_var
+    global path, preDataSet, curr_var, dataMax, dataMin
     #Select time frame (months)
     print(path)
     preDataSetSlice = preDataSet.isel(time=slice(int(phase),int(phase)+1))
@@ -116,7 +125,7 @@ def sine(phase, var):
 
     ## Interpolated data
     #granularity = 16
-    #new_lon = np.linspace(preDataSet.lon[0], preDataSet.lon[-1], preDataSet.dims['lon'] * granularity)
+    #new_lon = np.linspace(preDataSet.lon[0], preDataSet.lon[-1], preåDataSet.dims['lon'] * granularity)
     #new_lat = np.linspace(preDataSet.lat[0], preDataSet.lat[-1], preDataSet.dims['lat'] * granularity)
 
     #interpData = preDataSet.interp(lat=new_lat, lon=new_lon)
@@ -127,7 +136,9 @@ def sine(phase, var):
 
     #creating dataset
     dataset = gv.Dataset(preDataSetSlice, ['lon', 'lat'], var)
-    return gv.Image(dataset) * gf.coastline() * gf.borders() * gv.Feature(feature.STATES)
+    return gv.Image(dataset, vdims=hv.Dimension(var, range=(dataMin, dataMax))).opts(cmap='Reds', colorbar=True) * gf.coastline() * gf.borders() * gv.Feature(feature.STATES)
+
+    # return gv.Image(dataset) * gf.coastline() * gf.borders() * gv.Feature(feature.STATES)
     #cobalt = dataset.to(gv.Image, ['lon', 'lat'], 'TS')
     #cobalt = cobalt.opts(backend='bokeh', responsive=True, cmap='Reds', colorbar=True) * gf.coastline() * gf.borders() * gv.Feature(feature.STATES)
     #return cobalt
@@ -151,18 +162,19 @@ def modify_doc(doc):
         slider.value = year
 
     def slider_update(attrname, old, new):
-        print(attrname, old, new)
+        # print(attrname, old, new)
         # Notify the HoloViews stream of the slider update 
         stream.event(phase=new)
         slider.title = curr_time
         
     def variable_update(event):
-        global path, preDataSet, curr_var
+        global path, preDataSet, curr_var, dataMax, dataMin
         path = './data/f09_g16.B.cobalt.FRAM.MAY.{}.200005-208106.nc'.format(event.item)
         curr_var = event.item
-        print(path)
+        # print(path)
         preDataSet = xr.open_dataset(path)
         var_stream.event(var=event.item)
+        dataMax, dataMin = getMinMax(preDataSet, curr_var)
 
     start, end = 0, 100
     slider = Slider(start=start, end=end, value=start, step=1, title="Date", show_value=False)
