@@ -99,13 +99,25 @@ def getMinMax(data, var):
     dataMax = varData.values.max()
     return dataMin, dataMax
 
+def interpolateData(data):
+    granularity = 2
+    new_lon = np.linspace(data.lon[0], data.lon[-1], data.dims['lon'] * granularity)
+    new_lat = np.linspace(data.lat[0], data.lat[-1], data.dims['lat'] * granularity)
+    interpData = data.interp(lat=new_lat, lon=new_lon)
+    return interpData
+
 path = './data/f09_g16.B.cobalt.FRAM.MAY.TS.200005-208106.nc'
 preDataSet = xr.open_dataset(path)
 curr_var = "TS"
-range_dict = {"TS":(199,319), "PRECT":(0,1.1120172e-06)}
-min_range, max_range = 199, 319
+# range_dict = {"TS":(199,319), "PRECT":(0,1.1120172e-06)}
+# min_range, max_range = 199, 319
 
 max_range, min_range = getMinMax(preDataSet, curr_var)
+print('min range:', min_range)
+print('max range:', max_range)
+
+preDataset = interpolateData(preDataSet)
+print('dont with interpolation')
 
 def variableDropdown(value):
     path = './data/f09_g16.B.cobalt.FRAM.MAY.{}.200005-208106.nc'.format(value)
@@ -116,7 +128,7 @@ def sine(phase, var):
     
     global path, preDataSet, curr_var, min_range, max_range
     #Select time frame (months)
-    print(path)
+    print('from sine:', path)
     preDataSetSlice = preDataSet.isel(time=slice(int(phase),int(phase)+1))
     global curr_time 
     curr_time = str(preDataSetSlice['time'].data[0])
@@ -137,6 +149,7 @@ def sine(phase, var):
 
     #.redim.range(z=(0, 0.9))
     #creating dataset
+    print('sine ranges: ', min_range, max_range)
     dataset = gv.Dataset(preDataSetSlice, ['lon', 'lat'], var)
     return gv.Image(dataset, vdims=hv.Dimension(var, range=(min_range, max_range))).opts(cmap='Reds', colorbar=True) * gf.coastline() * gf.borders() * gv.Feature(feature.STATES)
     #cobalt = dataset.to(gv.Image, ['lon', 'lat'], 'TS')
@@ -156,6 +169,7 @@ def modify_doc(doc):
 
     # Create a slider and play buttons
     def animate_update():
+        print('animate update')
         year = slider.value + 1
         if year > end:
             year = start
@@ -164,17 +178,27 @@ def modify_doc(doc):
     def slider_update(attrname, old, new):
         # print(attrname, old, new)
         # Notify the HoloViews stream of the slider update 
+        print('slider update')
         stream.event(phase=new)
         slider.title = curr_time
         
     def variable_update(event):
+        print('Variable Update')
         global path, preDataSet, curr_var, min_range, max_range
         path = './data/f09_g16.B.cobalt.FRAM.MAY.{}.200005-208106.nc'.format(event.item)
         curr_var = event.item
-        min_range, max_range = getMinMax(preDataSet, curr_var)
 
         preDataSet = xr.open_dataset(path)
+        # print('lon 0:', preDataSet.lon[0])
+        # print('lon -1:', preDataSet.lon[-1])
+        # print('dims: lat lon:', preDataSet.dims['lon'], preDataSet.dims['lat'])
         var_stream.event(var=event.item)
+        min_range, max_range = getMinMax(preDataSet, curr_var)
+        print('min range:', min_range)
+        print('max range:', max_range)
+        preDataSet = interpolateData(preDataSet)
+        print('interpolated that data')
+
 
     start, end = 0, 100
     slider = Slider(start=start, end=end, value=start, step=1, title="Date", show_value=False)
