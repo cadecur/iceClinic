@@ -95,8 +95,8 @@ def sliceDimensions(state, padding=0, roundedOut=False):
 
 def getMinMax(data, var):
     varData = data.data_vars[var]
-    dataMin = varData.values.min()
-    dataMax = varData.values.max()
+    dataMin = float(varData.values.min())
+    dataMax = float(varData.values.max())
     return dataMin, dataMax
 
 def interpolateData(data):
@@ -112,7 +112,7 @@ curr_var = "TS"
 # range_dict = {"TS":(199,319), "PRECT":(0,1.1120172e-06)}
 # min_range, max_range = 199, 319
 
-max_range, min_range = getMinMax(preDataSet, curr_var)
+min_range, max_range = getMinMax(preDataSet, curr_var)
 print('min range:', min_range)
 print('max range:', max_range)
 
