@@ -94,6 +94,12 @@ def sliceDimensions(state, padding=0, roundedOut=False):
     paddedBounds = (math.floor(northeastBounds[0] - padding),math.floor(northeastBounds[1] - padding), math.ceil(northeastBounds[2] + padding),math.ceil(northeastBounds[3] + padding)) if roundedOut else (northeastBounds[0] - padding, northeastBounds[1] - padding, northeastBounds[2] + padding, northeastBounds[3] + padding)
     return { "lat": slice(paddedBounds[1], paddedBounds[3]), "lon": slice(paddedBounds[0], paddedBounds[2]) }
 
+def getMinMax(data, var):
+    varData = data.data_vars[var]
+    dataMin = float(varData.values.min())
+    dataMax = float(varData.values.max())
+    return dataMin, dataMax
+
 path = './data/f09_g16.B.cobalt.FRAM.MAY.TS.200005-208106.nc'
 preDataSet = xr.open_dataset(path)
 
@@ -104,8 +110,7 @@ global_path = './data/f09_g16.B.cobalt.GLOBAL.MAY.TS.200005-208106.nc'
 global_data =  xr.open_dataset(global_path)
 
 curr_var = "TS"
-range_dict = {"TS":(199,319), "PRECT":(0,1.1120172e-06)}
-min_range, max_range = range_dict["TS"]
+min_range, max_range = getMinMax(preDataSet, curr_var)
 
 
 def sine(phase, var, lat, lon): 
@@ -156,7 +161,7 @@ def modify_doc(doc):
         slider.value = year
 
     def slider_update(attrname, old, new):
-        print(attrname, old, new)
+        # print(attrname, old, new)
         # Notify the HoloViews stream of the slider update 
         stream.event(phase=new)
         slider.title = curr_time
@@ -167,11 +172,11 @@ def modify_doc(doc):
         control_path = './data/f09_g16.B.cobalt.CONTROL.MAY.{}.200005-208106.nc'.format(event.item)
         global_path = './data/f09_g16.B.cobalt.GLOBAL.MAY.{}.200005-208106.nc'.format(event.item)
         curr_var = event.item
-        min_range, max_range = range_dict[curr_var]
 
         preDataSet = xr.open_dataset(path)
         control_data = xr.open_dataset(control_path)
         global_data = xr.open_dataset(global_path)
+        min_range, max_range = getMinMax(preDataSet, curr_var)
         var_stream.event(var=event.item)
 
     def lat_update(attr, old, new):
