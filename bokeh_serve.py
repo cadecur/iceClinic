@@ -95,17 +95,14 @@ def sliceDimensions(state, padding=0, roundedOut=False):
 
 def getMinMax(data, var):
     varData = data.data_vars[var]
-    dataMin = varData.values.min()
-    dataMax = varData.values.max()
+    dataMin = float(varData.values.min())
+    dataMax = float(varData.values.max())
     return dataMin, dataMax
 
 path = './data/f09_g16.B.cobalt.FRAM.MAY.TS.200005-208106.nc'
 preDataSet = xr.open_dataset(path)
 curr_var = "TS"
-range_dict = {"TS":(199,319), "PRECT":(0,1.1120172e-06)}
-min_range, max_range = 199, 319
-
-max_range, min_range = getMinMax(preDataSet, curr_var)
+min_range, max_range = getMinMax(preDataSet, curr_var)
 
 def variableDropdown(value):
     path = './data/f09_g16.B.cobalt.FRAM.MAY.{}.200005-208106.nc'.format(value)
@@ -171,9 +168,9 @@ def modify_doc(doc):
         global path, preDataSet, curr_var, min_range, max_range
         path = './data/f09_g16.B.cobalt.FRAM.MAY.{}.200005-208106.nc'.format(event.item)
         curr_var = event.item
-        min_range, max_range = getMinMax(preDataSet, curr_var)
 
         preDataSet = xr.open_dataset(path)
+        min_range, max_range = getMinMax(preDataSet, curr_var)
         var_stream.event(var=event.item)
 
     start, end = 0, 100
