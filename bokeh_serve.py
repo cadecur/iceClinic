@@ -3,7 +3,7 @@ import holoviews as hv
 
 from bokeh.io import show, curdoc
 from bokeh.layouts import layout
-from bokeh.models import Slider, Button, WMTSTileSource
+from bokeh.models import Slider, Button, WMTSTileSource, TextInput
 from bokeh.models.widgets import Dropdown
 import geoviews as gv
 import geoviews.feature as gf
@@ -18,6 +18,7 @@ import numpy as np
 
 hv.extension('bokeh')
 renderer = hv.renderer('bokeh').instance(mode='server')
+hv.opts.defaults(hv.opts.Curve(width=600, framewise=True))
 
 # Create the holoviews app again
 def sliceDimensions(state, padding=0, roundedOut=False):
@@ -95,56 +96,58 @@ def sliceDimensions(state, padding=0, roundedOut=False):
 
 path = './data/f09_g16.B.cobalt.FRAM.MAY.TS.200005-208106.nc'
 preDataSet = xr.open_dataset(path)
+
+control_path = './data/f09_g16.B.cobalt.CONTROL.MAY.TS.200005-208106.nc'
+control_data =  xr.open_dataset(control_path)
+
+global_path = './data/f09_g16.B.cobalt.GLOBAL.MAY.TS.200005-208106.nc'
+global_data =  xr.open_dataset(global_path)
+
 curr_var = "TS"
 range_dict = {"TS":(199,319), "PRECT":(0,1.1120172e-06)}
-min_range, max_range = 199, 319
+min_range, max_range = range_dict["TS"]
 
-def variableDropdown(value):
-    path = './data/f09_g16.B.cobalt.FRAM.MAY.{}.200005-208106.nc'.format(value)
-    preDataSet = xr.open_dataset(path)
 
-def sine(phase, var):
-    
+def sine(phase, var, lat, lon): 
     global path, preDataSet, curr_var, min_range, max_range
     #Select time frame (months)
     print(path)
     preDataSetSlice = preDataSet.isel(time=slice(int(phase),int(phase)+1))
     global curr_time 
     curr_time = str(preDataSetSlice['time'].data[0])
-    ##acquire bounding box
-    ##in this case we want to look at California
-    #sliceObjects = sliceDimensions('CA', roundedOut = True, padding=1)
-    #preDataSet = preDataSet.sel(lat=sliceObjects["lat"], lon = sliceObjects["lon"])
-
-    ## Interpolated data
-    #granularity = 16
-    #new_lon = np.linspace(preDataSet.lon[0], preDataSet.lon[-1], preDataSet.dims['lon'] * granularity)
-    #new_lat = np.linspace(preDataSet.lat[0], preDataSet.lat[-1], preDataSet.dims['lat'] * granularity)
-
-    #interpData = preDataSet.interp(lat=new_lat, lon=new_lon)
-
-    # interpData.air.plot(ax=axes[1])
-    # axes[1].set_title('Interpolated data')
-
-    #.redim.range(z=(0, 0.9))
-    #creating dataset
+    
     dataset = gv.Dataset(preDataSetSlice, ['lon', 'lat'], var)
-    return gv.Image(dataset, vdims=hv.Dimension(var, range=(min_range, max_range))).opts(cmap='Reds', colorbar=True) * gf.coastline() * gf.borders() * gv.Feature(feature.STATES)
-    #cobalt = dataset.to(gv.Image, ['lon', 'lat'], 'TS')
-    #cobalt = cobalt.opts(backend='bokeh', responsive=True, cmap='Reds', colorbar=True) * gf.coastline() * gf.borders() * gv.Feature(feature.STATES)
-    #return cobalt
-    #xs = np.linspace(0, np.pi*4)
-    #return hv.Curve((xs, np.sin(xs+phase))).opts(width=800)
+    return gv.Image(dataset, vdims=hv.Dimension(var, range=(min_range, max_range))).opts(cmap='Reds', colorbar=True) * gf.coastline() * gf.borders()
+    # * gv.Points([(lat,lon)],crs=crs.GOOGLE_MERCATOR)
+
+def timeseries(var, lat, lon):
+    fram_curveData = preDataSet.isel(lon=int(lon), lat=int(lat))
+    fram_curveData = fram_curveData.sel(time=slice('2001-01-01', '2080-12-01'))
+    fram_data = fram_curveData[var].resample(time="12M").mean(dim="time")   
+    control_curveData = control_data.isel(lon=int(lon), lat=int(lat))
+    control_curveData = control_curveData.sel(time=slice('2001-01-01', '2080-12-01'))
+    control_data_final = control_curveData[var].resample(time="12M").mean(dim="time")
+    global_curvedata = global_data.isel(lon=int(lon), lat=int(lat))
+    global_curvedata = global_curvedata.sel(time=slice('2001-01-01', '2080-12-01'))
+    global_data_final = global_curvedata[var].resample(time="12M").mean(dim="time")
+    control_plot = hv.Curve(control_data_final, kdims=['time'], label='Control')
+    fram_plot = hv.Curve(fram_data, kdims=['time'], label='Fram')
+    global_plot = hv.Curve(global_data_final, kdims=['time'], label='Global').opts(framewise=True)
+    plot = fram_plot * control_plot * global_plot
+    return plot.opts(width=500, framewise=True)
 
 stream = hv.streams.Stream.define('Phase', phase=0)()
 var_stream = hv.streams.Stream.define('Var', var="TS")()
-dmap = hv.DynamicMap(sine, streams=[stream, var_stream]).opts(width=500, height=400)
+lat_stream = hv.streams.Stream.define('Lat', lat=45)()
+lon_stream = hv.streams.Stream.define('Lon', lon=122)()
+dmap = hv.DynamicMap(sine, streams=[stream, var_stream, lat_stream, lon_stream]).opts(width=500, height=400)
+dmap_time_series = hv.DynamicMap(timeseries, streams=[var_stream, lat_stream, lon_stream]).opts(width=500, framewise=True)
 # Define valid function for FunctionHandler
 # when deploying as script, simply attach to curdoc
 def modify_doc(doc):
     # Create HoloViews plot and attach the document
     hvplot = renderer.get_plot(dmap, doc)
-
+    timeseriesPlot = renderer.get_plot(dmap_time_series, doc)
     # Create a slider and play buttons
     def animate_update():
         year = slider.value + 1
@@ -159,15 +162,28 @@ def modify_doc(doc):
         slider.title = curr_time
         
     def variable_update(event):
-        global path, preDataSet, curr_var, min_range, max_range
+        global path, preDataSet, curr_var, min_range, max_range, control_path, control_data, global_data, global_path
         path = './data/f09_g16.B.cobalt.FRAM.MAY.{}.200005-208106.nc'.format(event.item)
+        control_path = './data/f09_g16.B.cobalt.CONTROL.MAY.{}.200005-208106.nc'.format(event.item)
+        global_path = './data/f09_g16.B.cobalt.GLOBAL.MAY.{}.200005-208106.nc'.format(event.item)
         curr_var = event.item
         min_range, max_range = range_dict[curr_var]
 
         preDataSet = xr.open_dataset(path)
+        control_data = xr.open_dataset(control_path)
+        global_data = xr.open_dataset(global_path)
         var_stream.event(var=event.item)
 
-    start, end = 0, 100
+    def lat_update(attr, old, new):
+        print(attr, old, new)
+        lat_stream.event(lat=int(new)) 
+
+    def lon_update(attr, old, new):
+        print(attr, old, new)
+        lon_stream.event(lon=int(new)) 
+
+
+    start, end = 0, 900
     slider = Slider(start=start, end=end, value=start, step=1, title="Date", show_value=False)
     slider.on_change('value', slider_update)
     
@@ -175,6 +191,13 @@ def modify_doc(doc):
     menu = [("Temperature", "TS"), ("Percipitation", "PRECT")]
     dropdown = Dropdown(label="Select Variable", button_type="primary", menu=menu)
     dropdown.on_click(variable_update)
+
+    lat_input = TextInput(value="45", title="Latitude:")
+    lat_input.on_change("value", lat_update)
+
+    lon_input = TextInput(value="122", title="Longitude:")
+    lon_input.on_change("value", lon_update)
+
 
     callback_id = None
 
@@ -195,8 +218,8 @@ def modify_doc(doc):
 
     # Combine the holoviews plot and widgets in a layout
     plot = layout([
-    [hvplot.state, hv.render(temp_curve)],
-    [slider, button],
+    [hvplot.state, timeseriesPlot.state],
+    [slider, button, lat_input, lon_input],
     [dropdown]], sizing_mode='fixed')
     
     curdoc().add_root(plot)
