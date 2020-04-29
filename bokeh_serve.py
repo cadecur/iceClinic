@@ -96,6 +96,8 @@ def sliceDimensions(state, padding=0, roundedOut=False):
 path = './data/f09_g16.B.cobalt.FRAM.MAY.TS.200005-208106.nc'
 preDataSet = xr.open_dataset(path)
 curr_var = "TS"
+range_dict = {"TS":(199,319), "PRECT":(0,1.1120172e-06)}
+min_range, max_range = 199, 319
 
 def variableDropdown(value):
     path = './data/f09_g16.B.cobalt.FRAM.MAY.{}.200005-208106.nc'.format(value)
@@ -103,7 +105,7 @@ def variableDropdown(value):
 
 def sine(phase, var):
     
-    global path, preDataSet, curr_var
+    global path, preDataSet, curr_var, min_range, max_range
     #Select time frame (months)
     print(path)
     preDataSetSlice = preDataSet.isel(time=slice(int(phase),int(phase)+1))
@@ -124,10 +126,10 @@ def sine(phase, var):
     # interpData.air.plot(ax=axes[1])
     # axes[1].set_title('Interpolated data')
 
-
+    #.redim.range(z=(0, 0.9))
     #creating dataset
     dataset = gv.Dataset(preDataSetSlice, ['lon', 'lat'], var)
-    return gv.Image(dataset) * gf.coastline() * gf.borders() * gv.Feature(feature.STATES)
+    return gv.Image(dataset, vdims=hv.Dimension(var, range=(min_range, max_range))).opts(cmap='Reds', colorbar=True) * gf.coastline() * gf.borders() * gv.Feature(feature.STATES)
     #cobalt = dataset.to(gv.Image, ['lon', 'lat'], 'TS')
     #cobalt = cobalt.opts(backend='bokeh', responsive=True, cmap='Reds', colorbar=True) * gf.coastline() * gf.borders() * gv.Feature(feature.STATES)
     #return cobalt
@@ -157,10 +159,11 @@ def modify_doc(doc):
         slider.title = curr_time
         
     def variable_update(event):
-        global path, preDataSet, curr_var
+        global path, preDataSet, curr_var, min_range, max_range
         path = './data/f09_g16.B.cobalt.FRAM.MAY.{}.200005-208106.nc'.format(event.item)
         curr_var = event.item
-        print(path)
+        min_range, max_range = range_dict[curr_var]
+
         preDataSet = xr.open_dataset(path)
         var_stream.event(var=event.item)
 
