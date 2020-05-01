@@ -92,7 +92,7 @@ def sliceDimensions(state, padding=0, roundedOut=False):
     paddedBounds = (math.floor(northeastBounds[0] - padding),math.floor(northeastBounds[1] - padding), math.ceil(northeastBounds[2] + padding),math.ceil(northeastBounds[3] + padding)) if roundedOut else (northeastBounds[0] - padding, northeastBounds[1] - padding, northeastBounds[2] + padding, northeastBounds[3] + padding)
     return { "lat": slice(paddedBounds[1], paddedBounds[3]), "lon": slice(paddedBounds[0], paddedBounds[2]) }
 
-path = './data/f09_g16.B.cobalt.FRAM.MAY.TS.200005-208106.nc'
+path = '../data/Interns2019/f09_g16.B.cobalt.FRAM.MAY.TS.200005-208106.nc'
 preDataSet = xr.open_dataset(path)
 
 def sine(phase):
@@ -117,10 +117,12 @@ def sine(phase):
     # interpData.air.plot(ax=axes[1])
     # axes[1].set_title('Interpolated data')
 
+    #creating basemap
+    stateBasemap = gv.Feature(feature.STATES)
 
     #creating dataset
     dataset = gv.Dataset(preDataSetSlice, ['lon', 'lat'], 'TS')
-    return gv.Image(dataset) * gf.coastline() * gf.borders()
+    return gv.Image(dataset) * gf.coastline() * gf.borders() * stateBasemap.opts(fill_alpha=0,line_width=0.5)
     #cobalt = dataset.to(gv.Image, ['lon', 'lat'], 'TS')
     #cobalt = cobalt.opts(backend='bokeh', responsive=True, cmap='Reds', colorbar=True) * gf.coastline() * gf.borders() * gv.Feature(feature.STATES)
     #return cobalt
