@@ -4,7 +4,7 @@ import holoviews as hv
 from bokeh.io import show, curdoc
 from bokeh.layouts import layout
 from bokeh.models import Slider, Button, WMTSTileSource, TextInput
-from bokeh.models.widgets import Dropdown
+from bokeh.models.widgets import Dropdown, CheckboxButtonGroup
 import geoviews as gv
 import geoviews.feature as gf
 import xarray as xr
@@ -112,17 +112,24 @@ global_data =  xr.open_dataset(global_path)
 curr_var = "TS"
 min_range, max_range = getMinMax(preDataSet, curr_var)
 
+cmap_dict = {'PRECT' : 'Blues', 'TS' : 'coolwarm', 'SPI' : 'BrBG', "FWI" : 'YlOrRd'}
 
-def sine(phase, var, lat, lon): 
-    global path, preDataSet, curr_var, min_range, max_range
+
+def sine(phase, var, lat, lon, interp): 
+    global path, preDataSet, curr_var, min_range, max_range, cmap_dict
     #Select time frame (months)
     print(path)
     preDataSetSlice = preDataSet.isel(time=slice(int(phase),int(phase)+1))
     global curr_time 
     curr_time = str(preDataSetSlice['time'].data[0])
-    
+    if interp == 1:
+        granularity = 2
+        new_lon = np.linspace(preDataSetSlice.lon[0], preDataSetSlice.lon[-1], preDataSetSlice.dims['lon'] * granularity)
+        new_lat = np.linspace(preDataSetSlice.lat[0], preDataSetSlice.lat[-1], preDataSetSlice.dims['lat'] * granularity)
+        preDataSetSlice = preDataSetSlice.interp(lat=new_lat, lon=new_lon)
+
     dataset = gv.Dataset(preDataSetSlice, ['lon', 'lat'], var)
-    return gv.Image(dataset, vdims=hv.Dimension(var, range=(min_range, max_range))).opts(cmap='Reds', colorbar=True) * gf.coastline() * gf.borders()
+    return gv.Image(dataset, vdims=hv.Dimension(var, range=(min_range, max_range))).opts(projection = crs.Robinson(), cmap=cmap_dict[var], colorbar=True) * gf.coastline() * gf.borders()
     # * gv.Points([(lat,lon)],crs=crs.GOOGLE_MERCATOR)
 
 def timeseries(var, lat, lon):
@@ -145,7 +152,8 @@ stream = hv.streams.Stream.define('Phase', phase=0)()
 var_stream = hv.streams.Stream.define('Var', var="TS")()
 lat_stream = hv.streams.Stream.define('Lat', lat=45)()
 lon_stream = hv.streams.Stream.define('Lon', lon=122)()
-dmap = hv.DynamicMap(sine, streams=[stream, var_stream, lat_stream, lon_stream]).opts(width=500, height=400)
+interp_stream = hv.streams.Stream.define('interp', interp=0)()
+dmap = hv.DynamicMap(sine, streams=[stream, var_stream, lat_stream, lon_stream, interp_stream]).opts(width=600)
 dmap_time_series = hv.DynamicMap(timeseries, streams=[var_stream, lat_stream, lon_stream]).opts(width=500, framewise=True)
 # Define valid function for FunctionHandler
 # when deploying as script, simply attach to curdoc
@@ -187,6 +195,10 @@ def modify_doc(doc):
         print(attr, old, new)
         lon_stream.event(lon=int(new)) 
 
+    def interp_update(event):
+        print(event)
+        interp_stream.event(interp=event[0]) 
+
 
     start, end = 0, 900
     slider = Slider(start=start, end=end, value=start, step=1, title="Date", show_value=False)
@@ -203,6 +215,11 @@ def modify_doc(doc):
     lon_input = TextInput(value="122", title="Longitude:")
     lon_input.on_change("value", lon_update)
 
+    #Interpolation Option
+    interp_button = CheckboxButtonGroup(labels=["Interpolate"], active=[0, 1])
+    interp_button.on_click(interp_update)
+    #interp_toggle = Toggle(label="Interpolate", button_type="success")
+
 
     callback_id = None
 
@@ -210,7 +227,7 @@ def modify_doc(doc):
         global callback_id
         if button.label == '► Play':
             button.label = '❚❚ Pause'
-            callback_id = doc.add_periodic_callback(animate_update, 50)
+            callback_id = doc.add_periodic_callback(animate_update, 100)
         else:
             button.label = '► Play'
             doc.remove_periodic_callback(callback_id)
@@ -225,7 +242,8 @@ def modify_doc(doc):
     plot = layout([
     [hvplot.state, timeseriesPlot.state],
     [slider, button, lat_input, lon_input],
-    [dropdown]], sizing_mode='fixed')
+    [dropdown],
+    [interp_button]], sizing_mode='fixed')
     
     curdoc().add_root(plot)
     #return doc
