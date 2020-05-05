@@ -1,5 +1,6 @@
 import numpy as np
 import holoviews as hv
+from holoviews.operation.datashader import regrid
 from bokeh.io import show, curdoc
 from bokeh.layouts import layout
 from bokeh.models import Slider, Button, WMTSTileSource, TextInput
@@ -14,6 +15,7 @@ from bokeh.embed import json_item, components
 import json
 import math
 import time
+import cftime
 
 hv.extension('bokeh')
 renderer = hv.renderer('bokeh').instance(mode='server')
@@ -96,7 +98,9 @@ def sliceDimensions(state, padding=0, roundedOut=False):
 def getMinMax(data, var):
     varData = data.data_vars[var]
     dataMin = float(varData.values.min())
+    print(dataMin)
     dataMax = float(varData.values.max())
+    print(dataMax)
     return dataMin, dataMax
 
 path = './data/f09_g16.B.cobalt.FRAM.MAY.TS.200005-208106.nc'
@@ -109,49 +113,50 @@ global_path = './data/f09_g16.B.cobalt.GLOBAL.MAY.TS.200005-208106.nc'
 global_data =  xr.open_dataset(global_path)
 
 curr_var = "TS"
-min_range, max_range = getMinMax(preDataSet, curr_var)
+curr_intervention = "FRAM"
+#curr_dataset = data_dict[curr_intervention]
+#min_range, max_range = getMinMax(preDataSet, curr_var)
 
 cmap_dict = {'PRECT' : 'Blues', 'TS' : 'coolwarm', 'SPI' : 'BrBG', "FWI" : 'YlOrRd'}
-
-
-def sine(phase, var, lat, lon, interp): 
-    global path, preDataSet, curr_var, min_range, max_range, cmap_dict
-    #Select time frame (months)
-    preDataSetSlice = preDataSet.isel(time=slice(int(phase),int(phase)+1))
-    global curr_time 
-    curr_time = str(preDataSetSlice['time'].data[0])
-    if interp == 1:
-        granularity = 2
-        new_lon = np.linspace(preDataSetSlice.lon[0], preDataSetSlice.lon[-1], preDataSetSlice.dims['lon'] * granularity)
-        new_lat = np.linspace(preDataSetSlice.lat[0], preDataSetSlice.lat[-1], preDataSetSlice.dims['lat'] * granularity)
-        preDataSetSlice = preDataSetSlice.interp(lat=new_lat, lon=new_lon)
-    dataset = gv.Dataset(preDataSetSlice, ['lon', 'lat'], var)
-    test = gv.Image(dataset, vdims=hv.Dimension(var, range=(min_range, max_range))).opts(projection = crs.Robinson(), cmap=cmap_dict[var], colorbar=True) * gf.coastline() * gf.borders()
-    return test
+path_dict = {'CONTROL': control_path, 'FRAM' : path, 'GLOBAL' : global_path}
+data_dict = {'CONTROL': control_data, 'FRAM' : preDataSet, 'GLOBAL' : global_data}
+curr_dataset = data_dict[curr_intervention]
+min_range, max_range = getMinMax(curr_dataset, curr_var)
+def sine(phase, var, lat, lon, interp, intervention): 
+    return cobalt[phase]
     # * gv.Points([(lat,lon)],crs=crs.GOOGLE_MERCATOR)
 
 def timeseries(var, lat, lon):
     fram_curveData = preDataSet.isel(lon=int(lon), lat=int(lat))
     fram_curveData = fram_curveData.sel(time=slice('2001-01-01', '2080-12-01'))
-    fram_data = fram_curveData[var].resample(time="12M").mean(dim="time")   
+    fram_data = fram_curveData[var].resample(time="12M").mean(dim="time") 
+    fram_data = fram_data.rolling(time=10, center=True).mean()
     control_curveData = control_data.isel(lon=int(lon), lat=int(lat))
     control_curveData = control_curveData.sel(time=slice('2001-01-01', '2080-12-01'))
     control_data_final = control_curveData[var].resample(time="12M").mean(dim="time")
+    control_data_final = control_data_final.rolling(time=10, center=True).mean()
     global_curvedata = global_data.isel(lon=int(lon), lat=int(lat))
     global_curvedata = global_curvedata.sel(time=slice('2001-01-01', '2080-12-01'))
     global_data_final = global_curvedata[var].resample(time="12M").mean(dim="time")
+    global_data_final = global_data_final.rolling(time=10, center=True).mean()
     control_plot = hv.Curve(control_data_final, kdims=['time'], label='Control')
     fram_plot = hv.Curve(fram_data, kdims=['time'], label='Fram')
     global_plot = hv.Curve(global_data_final, kdims=['time'], label='Global').opts(framewise=True)
     plot = fram_plot * control_plot * global_plot
     return plot.opts(width=500, framewise=True)
 
-stream = hv.streams.Stream.define('Phase', phase=0)()
+stream = hv.streams.Stream.define('Phase', phase=cftime.DatetimeNoLeap(2000,6,1))()
 var_stream = hv.streams.Stream.define('Var', var="TS")()
 lat_stream = hv.streams.Stream.define('Lat', lat=45)()
 lon_stream = hv.streams.Stream.define('Lon', lon=122)()
 interp_stream = hv.streams.Stream.define('interp', interp=0)()
-dmap = hv.DynamicMap(sine, streams=[stream, var_stream, lat_stream, lon_stream, interp_stream]).opts(width=600, )
+intervention_stream = hv.streams.Stream.define('intervention', intervention="FRAM")()
+
+dmap = hv.DynamicMap(sine, streams=[stream, var_stream, lat_stream, lon_stream, interp_stream, intervention_stream]).opts(width=600, )
+dataset = gv.Dataset(curr_dataset)
+cobalt = dataset.to(gv.Image, ['lon', 'lat'], 'TS', dynamic=True).opts(cmap='coolwarm', colorbar=True, backend='bokeh', projection = crs.PlateCarree()) *gf.coastline() * gf.borders()
+cobalt = cobalt.redim(TS=hv.Dimension(curr_var, range=(min_range, max_range)))
+
 dmap_time_series = hv.DynamicMap(timeseries, streams=[var_stream, lat_stream, lon_stream]).opts(width=500, framewise=True)
 # Define valid function for FunctionHandler
 # when deploying as script, simply attach to curdoc
@@ -160,6 +165,18 @@ def modify_doc(doc):
     hvplot = renderer.get_plot(dmap, doc)
     timeseriesPlot = renderer.get_plot(dmap_time_series, doc)
     # Create a slider and play buttons
+    def redim_helper(curr_var, dataset, cobalt):
+        min_range, max_range = getMinMax(dataset, curr_var)
+        if curr_var == "TS":
+            cobalt = cobalt.redim(TS=hv.Dimension(curr_var, range=(min_range, max_range)))
+        elif curr_var == "PRECT":
+            cobalt = cobalt.redim(PRECT=hv.Dimension(curr_var, range=(min_range, max_range)))
+        elif curr_var == "SPI":
+            cobalt = cobalt.redim(SPI=hv.Dimension(curr_var, range=(min_range, max_range)))
+        if curr_var == "FWI":
+            cobalt = cobalt.redim(FWI=hv.Dimension(curr_var, range=(min_range, max_range)))
+        return cobalt
+
     def animate_update():
         year = slider.value + 1
         if year > end:
@@ -169,20 +186,41 @@ def modify_doc(doc):
     def slider_update(attrname, old, new):
         # print(attrname, old, new)
         # Notify the HoloViews stream of the slider update 
-        stream.event(phase=new)
-        slider.title = curr_time
+        year = 2000 + (new // 12)
+        month = (new % 12) + 1
+        stream.event(phase=cftime.DatetimeNoLeap(year,month,1))
+        slider.title = "{}-{}".format(year,month)
         
     def variable_update(event):
-        global path, preDataSet, curr_var, min_range, max_range, control_path, control_data, global_data, global_path
+        global path, preDataSet, curr_var, min_range, max_range, control_path, control_data, global_data, global_path, cobalt, curr_dataset, curr_intervention, data_dict
         path = './data/f09_g16.B.cobalt.FRAM.MAY.{}.200005-208106.nc'.format(event.item)
         control_path = './data/f09_g16.B.cobalt.CONTROL.MAY.{}.200005-208106.nc'.format(event.item)
         global_path = './data/f09_g16.B.cobalt.GLOBAL.MAY.{}.200005-208106.nc'.format(event.item)
         curr_var = event.item
-
         preDataSet = xr.open_dataset(path)
         control_data = xr.open_dataset(control_path)
         global_data = xr.open_dataset(global_path)
-        min_range, max_range = getMinMax(preDataSet, curr_var)
+        data_dict = {'CONTROL': control_data, 'FRAM' : preDataSet, 'GLOBAL' : global_data}
+        curr_dataset = data_dict[curr_intervention]
+        print(curr_dataset[curr_var][1][1][1])
+        dataset = gv.Dataset(curr_dataset)
+        cobalt = dataset.to(gv.Image, ['lon', 'lat'], curr_var, dynamic=True).opts(cmap=cmap_dict[curr_var], colorbar=True, backend='bokeh', projection = crs.PlateCarree()) *gf.coastline() * gf.borders()  
+
+        #control_min_range, control_max_range = getMinMax(control_data, curr_var)
+        #print(control_min_range, control_max_range)
+        fram_min_range, fram_max_range = getMinMax(preDataSet, curr_var)
+        global_min_range, global_max_range = getMinMax(global_data, curr_var)
+        min_range = min(fram_min_range, global_min_range)
+        max_range = max(fram_max_range,global_max_range)
+        print(min_range,max_range)
+        if curr_var == "TS":
+            cobalt = cobalt.redim(TS=hv.Dimension(curr_var, range=(min_range, max_range)))
+        elif curr_var == "PRECT":
+            cobalt = cobalt.redim(PRECT=hv.Dimension(curr_var, range=(min_range, max_range)))
+        elif curr_var == "SPI":
+            cobalt = cobalt.redim(SPI=hv.Dimension(curr_var, range=(min_range, max_range)))
+        if curr_var == "FWI":
+            cobalt = cobalt.redim(FWI=hv.Dimension(curr_var, range=(min_range, max_range)))
         var_stream.event(var=event.item)
 
     def lat_update(attr, old, new):
@@ -197,8 +235,27 @@ def modify_doc(doc):
         print(event)
         interp_stream.event(interp=event[0]) 
 
+    def intervention_update(event):
+        global curr_var, data_dict, control_data, curr_intervention, cobalt, min_range, max_range
+        curr_intervention = event.item
+        curr_ds = data_dict[event.item]
+        dataset = gv.Dataset(curr_ds)
+        print(curr_ds[curr_var][1][1][1])
+        cobalt = dataset.to(gv.Image, ['lon', 'lat'], curr_var, dynamic=True).opts(cmap=cmap_dict[curr_var], colorbar=True, backend='bokeh', projection = crs.PlateCarree()) *gf.coastline() * gf.borders()         
+        #cobalt = redim_helper(curr_var, curr_ds, cobalt)
+        #min_range, max_range = getMinMax(curr_ds, curr_var)
+        if curr_var == "TS":
+            cobalt = cobalt.redim(TS=hv.Dimension(curr_var, range=(min_range, max_range)))
+        elif curr_var == "PRECT":
+            cobalt = cobalt.redim(PRECT=hv.Dimension(curr_var, range=(min_range, max_range)))
+        elif curr_var == "SPI":
+            cobalt = cobalt.redim(SPI=hv.Dimension(curr_var, range=(min_range, max_range)))
+        if curr_var == "FWI":
+            cobalt = cobalt.redim(FWI=hv.Dimension(curr_var, range=(min_range, max_range)))
+        intervention_stream.event(intervention=event.item)
 
-    start, end = 0, 900
+
+    start, end = 5, 900
     slider = Slider(start=start, end=end, value=start, step=1, title="Date", show_value=False)
     slider.on_change('value', slider_update)
     
@@ -206,6 +263,10 @@ def modify_doc(doc):
     menu = [("Temperature", "TS"), ("Percipitation", "PRECT")]
     dropdown = Dropdown(label="Select Variable", button_type="primary", menu=menu)
     dropdown.on_click(variable_update)
+
+    intervention_menu = [("Control", "CONTROL"), ("Fram", "FRAM"), ("Global", "GLOBAL")]
+    intervention_dropdown = Dropdown(label="Select Intervention Type", button_type="primary", menu=intervention_menu)
+    intervention_dropdown.on_click(intervention_update)
 
     lat_input = TextInput(value="45", title="Latitude:")
     lat_input.on_change("value", lat_update)
@@ -225,7 +286,7 @@ def modify_doc(doc):
         global callback_id
         if button.label == '► Play':
             button.label = '❚❚ Pause'
-            callback_id = doc.add_periodic_callback(animate_update, 100)
+            callback_id = doc.add_periodic_callback(animate_update, 75)
         else:
             button.label = '► Play'
             doc.remove_periodic_callback(callback_id)
@@ -241,7 +302,7 @@ def modify_doc(doc):
     [hvplot.state, timeseriesPlot.state],
     [slider, button, lat_input, lon_input],
     [dropdown],
-    [interp_button]], sizing_mode='fixed')
+    [interp_button, intervention_dropdown]], sizing_mode='fixed')
     
     curdoc().add_root(plot)
     #return doc
