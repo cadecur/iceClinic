@@ -7,3 +7,4 @@ script.html
 test_div.html
 test_xarray.pickle
 test_xarray.pkl
+.DS_store

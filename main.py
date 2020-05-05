@@ -2,8 +2,8 @@ import numpy as np
 import holoviews as hv
 
 from bokeh.io import show, curdoc
-from bokeh.layouts import layout
-from bokeh.models import Slider, Button, WMTSTileSource
+from bokeh.layouts import layout, column, row
+from bokeh.models import Slider, Button, WMTSTileSource, Div
 from bokeh.models.widgets import Dropdown
 from bokeh.plotting import figure
 import geoviews as gv
@@ -202,7 +202,7 @@ def modify_doc(doc):
     
     #Variable Dropdown
     menu = [("Temperature", "TS"), ("Percipitation", "PRECT")]
-    dropdown = Dropdown(label="Select Variable", button_type="primary", menu=menu)
+    dropdown = Dropdown(label="Select Variable", button_type="primary", menu=menu, width=500)
     dropdown.on_click(variable_update)
 
     callback_id = None
@@ -233,11 +233,26 @@ def modify_doc(doc):
     logo.xgrid.grid_line_color = None
     logo.ygrid.grid_line_color = None
     # Combine the holoviews plot and widgets in a layout
-    plot = layout([
-    [logo],
-    [hvplot.state, hv.render(temp_curve)],
-    [slider, button],
-    [dropdown]], sizing_mode='fixed')
+
+    # logo = Div()
+
+    # logo = row(logo, background='#ff0000', align='center')
+    
+    # plot = layout([
+    # [logo],
+    # [hvplot.state, hv.render(temp_curve)],
+    # [slider, button],
+    # [dropdown]], sizing_mode='fixed', background="#1ca9c9")
+
+    logo = row(logo, background='#ff0000', align='center')
+    optionsRow = row(slider, button, width=500, background='#0000ff', align='center')
+    leftColumn = column(hvplot.state, optionsRow, dropdown, background="#383838", sizing_mode='stretch_width', align='center')
+
+    graphs = row(leftColumn, hv.render(temp_curve), sizing_mode="stretch_width", align='center', background='#00ff00')
+    # row4 = row(dropdown, sizing_mode="scale_width", background='#000000')
+
+    plot = column(logo, graphs, sizing_mode='stretch_width', align='center')
+
     
     curdoc().add_root(plot)
     #return doc
