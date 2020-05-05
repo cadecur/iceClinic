@@ -1,6 +1,5 @@
 import numpy as np
 import holoviews as hv
-
 from bokeh.io import show, curdoc
 from bokeh.layouts import layout
 from bokeh.plotting import figure
@@ -15,7 +14,7 @@ from datetime import datetime
 from bokeh.embed import json_item, components
 import json
 import math
-import numpy as np
+import time
 
 hv.extension('bokeh')
 renderer = hv.renderer('bokeh').instance(mode='server')
@@ -134,7 +133,6 @@ cmap_dict = {'PRECT' : 'Blues', 'TS' : 'coolwarm', 'SPI' : 'BrBG', "FWI" : 'YlOr
 def sine(phase, var, lat, lon, interp): 
     global path, preDataSet, curr_var, min_range, max_range, cmap_dict
     #Select time frame (months)
-    print('from sine:', path)
     preDataSetSlice = preDataSet.isel(time=slice(int(phase),int(phase)+1))
     global curr_time 
     curr_time = str(preDataSetSlice['time'].data[0])
@@ -143,22 +141,9 @@ def sine(phase, var, lat, lon, interp):
         new_lon = np.linspace(preDataSetSlice.lon[0], preDataSetSlice.lon[-1], preDataSetSlice.dims['lon'] * granularity)
         new_lat = np.linspace(preDataSetSlice.lat[0], preDataSetSlice.lat[-1], preDataSetSlice.dims['lat'] * granularity)
         preDataSetSlice = preDataSetSlice.interp(lat=new_lat, lon=new_lon)
-
-    ## Interpolated data
-    #granularity = 16
-    #new_lon = np.linspace(preDataSet.lon[0], preDataSet.lon[-1], preåDataSet.dims['lon'] * granularity)
-    #new_lat = np.linspace(preDataSet.lat[0], preDataSet.lat[-1], preDataSet.dims['lat'] * granularity)
-
-    #interpData = preDataSet.interp(lat=new_lat, lon=new_lon)
-
-    # interpData.air.plot(ax=axes[1])
-    # axes[1].set_title('Interpolated data')
-
-    #.redim.range(z=(0, 0.9))
-    #creating dataset
-    print('sine ranges: ', min_range, max_range)
     dataset = gv.Dataset(preDataSetSlice, ['lon', 'lat'], var)
-    return gv.Image(dataset, vdims=hv.Dimension(var, range=(min_range, max_range))).opts(projection = crs.Robinson(), cmap=cmap_dict[var], colorbar=True) * gf.coastline() * gf.borders()
+    test = gv.Image(dataset, vdims=hv.Dimension(var, range=(min_range, max_range))).opts(projection = crs.Robinson(), cmap=cmap_dict[var], colorbar=True) * gf.coastline() * gf.borders()
+    return test
     # * gv.Points([(lat,lon)],crs=crs.GOOGLE_MERCATOR)
 
 def timeseries(var, lat, lon):
@@ -182,7 +167,7 @@ var_stream = hv.streams.Stream.define('Var', var="TS")()
 lat_stream = hv.streams.Stream.define('Lat', lat=45)()
 lon_stream = hv.streams.Stream.define('Lon', lon=122)()
 interp_stream = hv.streams.Stream.define('interp', interp=0)()
-dmap = hv.DynamicMap(sine, streams=[stream, var_stream, lat_stream, lon_stream, interp_stream]).opts(width=600)
+dmap = hv.DynamicMap(sine, streams=[stream, var_stream, lat_stream, lon_stream, interp_stream]).opts(width=600, )
 dmap_time_series = hv.DynamicMap(timeseries, streams=[var_stream, lat_stream, lon_stream]).opts(width=500, framewise=True)
 # Define valid function for FunctionHandler
 # when deploying as script, simply attach to curdoc
