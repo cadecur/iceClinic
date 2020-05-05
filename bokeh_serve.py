@@ -1,9 +1,9 @@
 import numpy as np
 import holoviews as hv
 from bokeh.io import show, curdoc
-from bokeh.layouts import layout
+from bokeh.layouts import layout, column, row
 from bokeh.plotting import figure
-from bokeh.models import Slider, Button, WMTSTileSource, TextInput
+from bokeh.models import Slider, Button, WMTSTileSource, TextInput, Div
 from bokeh.models.widgets import Dropdown, CheckboxButtonGroup
 import geoviews as gv
 import geoviews.feature as gf
@@ -239,7 +239,6 @@ def modify_doc(doc):
     interp_button.on_click(interp_update)
     #interp_toggle = Toggle(label="Interpolate", button_type="success")
 
-
     callback_id = None
 
     def animate():
@@ -255,20 +254,47 @@ def modify_doc(doc):
     
     curveData = preDataSet.sel(time=slice('2001-01-01', '2080-12-01'))
     data = curveData['TS'].resample(time="12M").mean(dim="time")
-    temp_curve = hv.Curve(data.isel(lon=122, lat=45), kdims=['time']).opts(width=500)
+    temp_curve = hv.Curve(data.isel(lon=122, lat=45), kdims=['time']).opts(width=500)    
+
+    # Interpolation Text
+    interp_text = Div(text="<b>Note:</b> Interpolating will slow down the animation")
 
     # Getting the logo
 
-    logo = figure(x_range=(0,1), y_range=(0,1))
-    logo.image_url( url=['../static/logo.png'], x=0, y=1, w=0.8, h=0.6, anchor="bottom_left")
-
+    logo = figure(x_range=(0,10), y_range=(0,10), plot_width=300, plot_height=300)
+    logo.image_url( url=['./static/logo.png'], x=0, y=0, w=10, h=10, anchor="bottom_left")
+    logo.toolbar.logo = None
+    logo.toolbar_location = None
+    logo.xaxis.visible = None
+    logo.yaxis.visible = None
+    logo.xgrid.grid_line_color = None
+    logo.ygrid.grid_line_color = None
     # Combine the holoviews plot and widgets in a layout
-    plot = layout([
-    [logo],
-    [hvplot.state, timeseriesPlot.state],
-    [slider, button, lat_input, lon_input],
-    [dropdown],
-    [interp_button]], sizing_mode='fixed')
+
+    # logo = Div()
+
+    # logo = row(logo, background='#ff0000', align='center')
+    
+    # plot = layout([
+    # [logo],
+    # [hvplot.state, hv.render(temp_curve)],
+    # [slider, button],
+    # [dropdown]], sizing_mode='fixed', background="#1ca9c9")
+
+    logo = row(logo, align='center')
+    optionsRow = row(slider, button, align='center')
+    leftPlotRow= row(hvplot.state, align='center')
+    leftColumn = column(leftPlotRow, optionsRow, dropdown, interp_button, interp_text, sizing_mode='stretch_width', align='center')
+    coordsRow = row(lat_input, lon_input, align='center')
+    rightPlotRow = row(timeseriesPlot.state, align='center')
+    rightColumn = column(rightPlotRow, coordsRow)
+    # r = row(rightColumn, sizing_mode='scale_width', align='center', background="#383838")
+
+    graphs = row(leftColumn, rightColumn, sizing_mode="stretch_width", align='center')
+    # row4 = row(dropdown, sizing_mode="scale_width", background='#000000')
+
+    plot = column(logo, graphs, sizing_mode='stretch_width', align='center')
+
     
     curdoc().add_root(plot)
     #return doc
