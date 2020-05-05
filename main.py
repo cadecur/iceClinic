@@ -104,13 +104,13 @@ def getMinMax(data, var):
     print(dataMax)
     return dataMin, dataMax
 
-path = './data/f09_g16.B.cobalt.FRAM.MAY.TS.200005-208106.nc'
+path = './iceClinic/data/f09_g16.B.cobalt.FRAM.MAY.TS.200005-208106.nc'
 preDataSet = xr.open_dataset(path)
 
-control_path = './data/f09_g16.B.cobalt.CONTROL.MAY.TS.200005-208106.nc'
+control_path = './iceClinic/data/f09_g16.B.cobalt.CONTROL.MAY.TS.200005-208106.nc'
 control_data =  xr.open_dataset(control_path)
 
-global_path = './data/f09_g16.B.cobalt.GLOBAL.MAY.TS.200005-208106.nc'
+global_path = './iceClinic/data/f09_g16.B.cobalt.GLOBAL.MAY.TS.200005-208106.nc'
 global_data =  xr.open_dataset(global_path)
 
 curr_var = "TS"
@@ -194,9 +194,9 @@ def modify_doc(doc):
         
     def variable_update(event):
         global path, preDataSet, curr_var, min_range, max_range, control_path, control_data, global_data, global_path, cobalt, curr_dataset, curr_intervention, data_dict
-        path = './data/f09_g16.B.cobalt.FRAM.MAY.{}.200005-208106.nc'.format(event.item)
-        control_path = './data/f09_g16.B.cobalt.CONTROL.MAY.{}.200005-208106.nc'.format(event.item)
-        global_path = './data/f09_g16.B.cobalt.GLOBAL.MAY.{}.200005-208106.nc'.format(event.item)
+        path = './iceClinic/data/f09_g16.B.cobalt.FRAM.MAY.{}.200005-208106.nc'.format(event.item)
+        control_path = './iceClinic/data/f09_g16.B.cobalt.CONTROL.MAY.{}.200005-208106.nc'.format(event.item)
+        global_path = './iceClinic/data/f09_g16.B.cobalt.GLOBAL.MAY.{}.200005-208106.nc'.format(event.item)
         curr_var = event.item
         preDataSet = xr.open_dataset(path)
         control_data = xr.open_dataset(control_path)
@@ -321,7 +321,7 @@ def modify_doc(doc):
     logo = row(logo, align='center')
     optionsRow = row(slider, button, align='center')
     leftPlotRow= row(hvplot.state, align='center')
-    leftColumn = column(leftPlotRow, optionsRow, dropdown, intervention_dropdown, interp_button, interp_text, sizing_mode='stretch_width', align='center')
+    leftColumn = column(leftPlotRow, optionsRow, dropdown, intervention_dropdown, sizing_mode='stretch_width', align='center')
     coordsRow = row(lat_input, lon_input, align='center')
     rightPlotRow = row(timeseriesPlot.state, align='center')
     rightColumn = column(rightPlotRow, coordsRow)
@@ -347,3 +347,4 @@ def modify_doc(doc):
 
 # To display in a script
 doc = modify_doc(curdoc())
+
