@@ -160,7 +160,8 @@ intervention_stream = hv.streams.Stream.define('intervention', intervention="FRA
 
 dmap = hv.DynamicMap(sine, streams=[stream, var_stream, lat_stream, lon_stream, interp_stream, intervention_stream]).opts(width=600, )
 dataset = gv.Dataset(curr_dataset)
-cobalt = dataset.to(gv.Image, ['lon', 'lat'], 'TS', dynamic=True).opts(title = '{} Intervention, {} data'.format(curr_intervention, curr_var), cmap='coolwarm', colorbar=True, backend='bokeh', projection = crs.PlateCarree()) *gf.coastline() * gf.borders()
+stateBasemap = gv.Feature(feature.STATES)
+cobalt = dataset.to(gv.Image, ['lon', 'lat'], 'TS', dynamic=True).opts(title = '{} Intervention, {} data'.format(curr_intervention, curr_var), cmap='coolwarm', colorbar=True, backend='bokeh', projection = crs.PlateCarree()) *gf.coastline() * gf.borders() * stateBasemap.opts(fill_alpha=0,line_width=0.5)
 cobalt = cobalt.redim(TS=hv.Dimension(curr_var, range=(min_range, max_range)))
 
 dmap_time_series = hv.DynamicMap(timeseries, streams=[var_stream, lat_stream, lon_stream]).opts(width=500, framewise=True)
@@ -210,7 +211,8 @@ def modify_doc(doc):
         curr_dataset = data_dict[curr_intervention]
         print(curr_dataset[curr_var][1][1][1])
         dataset = gv.Dataset(curr_dataset)
-        cobalt = dataset.to(gv.Image, ['lon', 'lat'], curr_var, dynamic=True).opts(title = '{} Intervention, {} data'.format(curr_intervention, curr_var), cmap=cmap_dict[curr_var], colorbar=True, backend='bokeh', projection = crs.PlateCarree()) *gf.coastline() * gf.borders()  
+        stateBasemap = gv.Feature(feature.STATES)
+        cobalt = dataset.to(gv.Image, ['lon', 'lat'], curr_var, dynamic=True).opts(title = '{} Intervention, {} data'.format(curr_intervention, curr_var), cmap=cmap_dict[curr_var], colorbar=True, backend='bokeh', projection = crs.PlateCarree()) *gf.coastline() * gf.borders() * stateBasemap.opts(fill_alpha=0,line_width=0.5)
 
         #control_min_range, control_max_range = getMinMax(control_data, curr_var)
         #print(control_min_range, control_max_range)
@@ -269,7 +271,7 @@ def modify_doc(doc):
     slider.on_change('value', slider_update)
     
     #Variable Dropdown
-    menu = [("Temperature", "TS"), ("Percipitation", "PRECT"), ("Fire Weather", "FWI"), ("Precipitation Index", "SPI")]
+    menu = [("Temperature", "TS"), ("Precipitation", "PRECT"), ("Fire Weather", "FWI"), ("Precipitation Index", "SPI")]
     dropdown = Dropdown(label="Select Variable", button_type="primary", menu=menu)
     dropdown.on_click(variable_update)
 
