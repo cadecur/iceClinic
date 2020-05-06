@@ -97,6 +97,10 @@ def sliceDimensions(state, padding=0, roundedOut=False):
     return { "lat": slice(paddedBounds[1], paddedBounds[3]), "lon": slice(paddedBounds[0], paddedBounds[2]) }
 
 def getMinMax(data, var):
+    if var == 'SPI':
+        dataMax = data.quantile(.999)['SPI'].data.tolist()
+        dataMin = data.quantile(.001)['SPI'].data.tolist()
+        return dataMin, dataMax
     varData = data.data_vars[var]
     dataMin = float(varData.values.min())
     print(dataMin)
@@ -128,15 +132,15 @@ def sine(phase, var, lat, lon, interp, intervention):
     # * gv.Points([(lat,lon)],crs=crs.GOOGLE_MERCATOR)
 
 def timeseries(var, lat, lon):
-    fram_curveData = preDataSet.isel(lon=int(lon), lat=int(lat))
+    fram_curveData = preDataSet.sel(lon=int(lon), lat=int(lat), method='nearest')
     fram_curveData = fram_curveData.sel(time=slice('2001-01-01', '2080-12-01'))
     fram_data = fram_curveData[var].resample(time="12M").mean(dim="time") 
     fram_data = fram_data.rolling(time=10, center=True).mean()
-    control_curveData = control_data.isel(lon=int(lon), lat=int(lat))
+    control_curveData = control_data.sel(lon=int(lon), lat=int(lat), method='nearest')
     control_curveData = control_curveData.sel(time=slice('2001-01-01', '2080-12-01'))
     control_data_final = control_curveData[var].resample(time="12M").mean(dim="time")
     control_data_final = control_data_final.rolling(time=10, center=True).mean()
-    global_curvedata = global_data.isel(lon=int(lon), lat=int(lat))
+    global_curvedata = global_data.sel(lon=int(lon), lat=int(lat), method='nearest')
     global_curvedata = global_curvedata.sel(time=slice('2001-01-01', '2080-12-01'))
     global_data_final = global_curvedata[var].resample(time="12M").mean(dim="time")
     global_data_final = global_data_final.rolling(time=10, center=True).mean()
@@ -144,7 +148,8 @@ def timeseries(var, lat, lon):
     fram_plot = hv.Curve(fram_data, kdims=['time'], label='Fram')
     global_plot = hv.Curve(global_data_final, kdims=['time'], label='Global').opts(framewise=True)
     plot = fram_plot * control_plot * global_plot
-    return plot.opts(width=500, framewise=True)
+    labels = {'TS':'Temperature (C)', 'PRECT' : "Precipitation (mm/day)", "SPI" : "Standardized Precipitation Index", "FWI" : "Fosberg Fire Weather Index"}
+    return plot.opts(width=500, framewise=True, title = '{} timeseries data'.format(curr_var), ylabel=labels[var])
 
 stream = hv.streams.Stream.define('Phase', phase=cftime.DatetimeNoLeap(2000,6,1))()
 var_stream = hv.streams.Stream.define('Var', var="TS")()
@@ -155,7 +160,7 @@ intervention_stream = hv.streams.Stream.define('intervention', intervention="FRA
 
 dmap = hv.DynamicMap(sine, streams=[stream, var_stream, lat_stream, lon_stream, interp_stream, intervention_stream]).opts(width=600, )
 dataset = gv.Dataset(curr_dataset)
-cobalt = dataset.to(gv.Image, ['lon', 'lat'], 'TS', dynamic=True).opts(cmap='coolwarm', colorbar=True, backend='bokeh', projection = crs.PlateCarree()) *gf.coastline() * gf.borders()
+cobalt = dataset.to(gv.Image, ['lon', 'lat'], 'TS', dynamic=True).opts(title = '{} Intervention, {} data'.format(curr_intervention, curr_var), cmap='coolwarm', colorbar=True, backend='bokeh', projection = crs.PlateCarree()) *gf.coastline() * gf.borders()
 cobalt = cobalt.redim(TS=hv.Dimension(curr_var, range=(min_range, max_range)))
 
 dmap_time_series = hv.DynamicMap(timeseries, streams=[var_stream, lat_stream, lon_stream]).opts(width=500, framewise=True)
@@ -205,7 +210,7 @@ def modify_doc(doc):
         curr_dataset = data_dict[curr_intervention]
         print(curr_dataset[curr_var][1][1][1])
         dataset = gv.Dataset(curr_dataset)
-        cobalt = dataset.to(gv.Image, ['lon', 'lat'], curr_var, dynamic=True).opts(cmap=cmap_dict[curr_var], colorbar=True, backend='bokeh', projection = crs.PlateCarree()) *gf.coastline() * gf.borders()  
+        cobalt = dataset.to(gv.Image, ['lon', 'lat'], curr_var, dynamic=True).opts(title = '{} Intervention, {} data'.format(curr_intervention, curr_var), cmap=cmap_dict[curr_var], colorbar=True, backend='bokeh', projection = crs.PlateCarree()) *gf.coastline() * gf.borders()  
 
         #control_min_range, control_max_range = getMinMax(control_data, curr_var)
         #print(control_min_range, control_max_range)
@@ -226,11 +231,14 @@ def modify_doc(doc):
 
     def lat_update(attr, old, new):
         print(attr, old, new)
-        lat_stream.event(lat=int(new)) 
+        if int(new) in range(-90,90):
+            lat_stream.event(lat=int(new)) 
 
     def lon_update(attr, old, new):
         print(attr, old, new)
-        lon_stream.event(lon=int(new)) 
+        if int(new) in range(-180,180):
+            new_lon = int(new) + 180
+            lon_stream.event(lon=new_lon) 
 
     def interp_update(event):
         print(event)
@@ -242,7 +250,7 @@ def modify_doc(doc):
         curr_ds = data_dict[event.item]
         dataset = gv.Dataset(curr_ds)
         print(curr_ds[curr_var][1][1][1])
-        cobalt = dataset.to(gv.Image, ['lon', 'lat'], curr_var, dynamic=True).opts(cmap=cmap_dict[curr_var], colorbar=True, backend='bokeh', projection = crs.PlateCarree()) *gf.coastline() * gf.borders()         
+        cobalt = dataset.to(gv.Image, ['lon', 'lat'], curr_var, dynamic=True).opts(title = '{} Intervention, {} data'.format(curr_intervention, curr_var), cmap=cmap_dict[curr_var], colorbar=True, backend='bokeh', projection = crs.PlateCarree()) *gf.coastline() * gf.borders()         
         #cobalt = redim_helper(curr_var, curr_ds, cobalt)
         #min_range, max_range = getMinMax(curr_ds, curr_var)
         if curr_var == "TS":
@@ -261,7 +269,7 @@ def modify_doc(doc):
     slider.on_change('value', slider_update)
     
     #Variable Dropdown
-    menu = [("Temperature", "TS"), ("Percipitation", "PRECT")]
+    menu = [("Temperature", "TS"), ("Percipitation", "PRECT"), ("Fire Weather", "FWI"), ("Precipitation Index", "SPI")]
     dropdown = Dropdown(label="Select Variable", button_type="primary", menu=menu)
     dropdown.on_click(variable_update)
 
@@ -295,7 +303,8 @@ def modify_doc(doc):
     button.on_click(animate)
     
     interp_text = Div(text="<b>Note:</b> Interpolating will slow down the animation")
-
+    lat_lon_text = Div(text="<b>Note:</b> Latitude ranges from -90 to 90 and longitude from -180 to 180")
+    spacer = Div(height=200)
     # Getting the logo
 
     logo = figure(x_range=(0,10), y_range=(0,10), plot_width=300, plot_height=300)
@@ -324,13 +333,13 @@ def modify_doc(doc):
     leftColumn = column(leftPlotRow, optionsRow, dropdown, intervention_dropdown, sizing_mode='stretch_width', align='center')
     coordsRow = row(lat_input, lon_input, align='center')
     rightPlotRow = row(timeseriesPlot.state, align='center')
-    rightColumn = column(rightPlotRow, coordsRow)
+    rightColumn = column(rightPlotRow, coordsRow, lat_lon_text)
     # r = row(rightColumn, sizing_mode='scale_width', align='center', background="#383838")
 
     graphs = row(leftColumn, rightColumn, sizing_mode="stretch_width", align='center')
     # row4 = row(dropdown, sizing_mode="scale_width", background='#000000')
 
-    plot = column(logo, graphs, sizing_mode='stretch_width', align='center')
+    plot = column(logo, graphs, spacer, sizing_mode='stretch_width', align='center')
 
     # Combine the holoviews plot and widgets in a layout
     #plot = layout([
