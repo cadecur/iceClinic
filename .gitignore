@@ -7,3 +7,10 @@ script.html
 test_div.html
 test_xarray.pickle
 test_xarray.pkl
+bokeh_embed_responsive.py
+bokeh_iris_embed.py
+bokeh_iris_flask1.py
+bokeh_iris_flask2.py
+bokeh_serve.py
+pipeline.ipynb
+Demo.ipynb
