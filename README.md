@@ -1,4 +1,4 @@
-# iceClinic
+# Ice911 Research Clinic Team Webapp
 
 ## Introduction
 This is a Bokeh Server webapp made for Ice911 Research to better display the results of their climate models. This webapp uses the geoviews extension of holoviews to create the geographical visualizations.
