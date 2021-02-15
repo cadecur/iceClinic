@@ -1,0 +1,9 @@
+.ipynb_checkpoints/Demo-checkpoint.ipynb
+.vs/
+californiaTS.pickle
+data/
+flask_bokeh.py
+script.html
+test_div.html
+test_xarray.pickle
+test_xarray.pkl
